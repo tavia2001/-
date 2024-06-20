@@ -1,0 +1,53 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+
+# Загрузка данных
+# Предположим, у вас есть файл csv с временными рядами, например, данные о ценах на акции
+data = pd.read_csv('ваш_файл.csv')
+# Предполагается, что у вас есть столбец 'цена' с временными данными
+
+# Масштабирование данных
+scaler = MinMaxScaler(feature_range=(0, 1))
+scaled_data = scaler.fit_transform(data['цена'].values.reshape(-1, 1))
+
+# Создание датасета для обучения
+def create_dataset(data, time_step):
+    X, y = [], []
+    for i in range(len(data)-time_step-1):
+        X.append(data[i:(i+time_step), 0])
+        y.append(data[i + time_step, 0])
+    return np.array(X), np.array(y)
+
+time_step = 100
+X_train, y_train = create_dataset(scaled_data, time_step)
+
+# Подготовка данных для LSTM
+X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+
+# Создание модели LSTM
+model = Sequential()
+model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], 1)))
+model.add(LSTM(units=50, return_sequences=True))
+model.add(LSTM(units=50))
+model.add(Dense(units=1))
+model.compile(optimizer='adam', loss='mean_squared_error')
+
+# Обучение модели
+model.fit(X_train, y_train, epochs=100, batch_size=64)
+
+# Предсказание будущих значений
+test_data = scaled_data[-time_step:]
+test_data = test_data.reshape(1, time_step, 1)
+predicted_prices = model.predict(test_data)
+
+# Инвертирование масштабирования для получения предсказанных цен
+predicted_prices = scaler.inverse_transform(predicted_prices)
+
+# Визуализация предсказанных значений
+plt.plot(data['цена'].values)
+plt.plot(np.arange(len(data)-1, len(data)+1), predicted_prices, color='r')
+plt.show()
